@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import { CustomerManagement } from "@/components/customer-management"
 
 export const dynamic = 'force-dynamic'

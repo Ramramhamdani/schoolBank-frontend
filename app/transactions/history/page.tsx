@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import { TransactionHistory } from "@/components/transaction-history"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 

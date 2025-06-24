@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import { TransactionForm } from "@/components/transaction-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useSearchParams } from "next/navigation"

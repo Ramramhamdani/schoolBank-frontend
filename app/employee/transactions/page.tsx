@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import { AllTransactions } from "@/components/all-transactions"
 
 export const dynamic = 'force-dynamic'

@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import { ATMInterface } from "@/components/atm-interface"
 
 export const dynamic = 'force-dynamic'

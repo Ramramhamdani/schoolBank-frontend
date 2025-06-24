@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import { PendingApprovals } from "@/components/pending-approvals"
 
 export const dynamic = 'force-dynamic'
