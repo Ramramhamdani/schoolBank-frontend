@@ -2,7 +2,7 @@
 
 import {date} from "zod";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9090"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://schoolbank-backend.onrender.com:9090"
 import Cookies from "js-cookie"
 
 class ApiService {
@@ -164,21 +164,18 @@ class ApiService {
 
   // Employee/Admin methods (these would need backend endpoints)
   async getAllTransactions() {
-    // TODO: This would need a backend endpoint like /transactions
     // For now, return empty array to prevent errors
     console.warn("getAllTransactions() called but no backend endpoint exists")
     return []
   }
 
   async getAllCustomers() {
-    // TODO: This would need a backend endpoint like /users
     // For now, return empty array to prevent errors
     console.warn("getAllCustomers() called but no backend endpoint exists")
     return []
   }
 
   async getPendingApprovals() {
-    // TODO: This would need a backend endpoint for pending approvals
     // For now, return empty array to prevent errors
     console.warn("getPendingApprovals() called but no backend endpoint exists")
     return []
