@@ -8,6 +8,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { apiService } from "@/services/api"
+
+// Helper to get userId from JWT token (since getUserIdFromToken is private)
+function getUserIdFromToken() {
+  try {
+    const token = (typeof window !== 'undefined') ? window.localStorage.getItem('token') : null;
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.sub;
+  } catch {
+    return null;
+  }
+}
 
 export function PasswordResetForm() {
   const [isLoading, setIsLoading] = useState(false)
@@ -34,14 +47,12 @@ export function PasswordResetForm() {
       return
     }
 
-    // In a real app, you would call your password reset API here
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
+      const userId = getUserIdFromToken()
+      if (!userId) throw new Error("User not found")
+      await apiService.changePassword(userId, currentPassword, newPassword)
       setStatus("success")
       setMessage("Password updated successfully!")
-
       // Reset form
       const form = event.target as HTMLFormElement
       form.reset()

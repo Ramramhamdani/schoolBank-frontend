@@ -1,199 +1,172 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertCircle, CheckCircle2, CreditCard } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { apiService } from "@/services/api"
 
+// Preset ATM amounts
+const PRESET_AMOUNTS = [20, 50, 100, 200, 500, 1000]
+
 export function ATMInterface() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  // Step state: 1 = select account, 2 = select action, 3 = select amount
+  const [step, setStep] = useState(1)
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [selectedAccount, setSelectedAccount] = useState<any | null>(null)
+  const [action, setAction] = useState<"withdraw" | "deposit" | null>(null)
+  const [amount, setAmount] = useState<number | null>(null)
+  const [customAmount, setCustomAmount] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState<string>("")
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
-  const [message, setMessage] = useState("")
-  const [userAccount, setUserAccount] = useState<any>(null)
 
-  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  // Fetch all accounts on mount
+  useEffect(() => {
+    setIsLoading(true)
+    apiService.getCustomerAccounts()
+      .then((data) => setAccounts(data as any[]))
+      .catch(() => setMessage("Failed to load accounts"))
+      .finally(() => setIsLoading(false))
+  }, [])
+
+  // Reset state when going back
+  function resetToStep1() {
+    setStep(1)
+    setSelectedAccount(null)
+    setAction(null)
+    setAmount(null)
+    setCustomAmount("")
+    setMessage("")
+    setStatus("idle")
+  }
+
+  // Handle deposit/withdraw
+  async function handleTransaction(amt: number) {
+    if (!selectedAccount || !action) return
     setIsLoading(true)
     setStatus("idle")
-
-    const formData = new FormData(event.currentTarget)
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-
+    setMessage("")
     try {
-      const response = await apiService.atmLogin(email, password)
-      setUserAccount(response.account)
-      setIsLoggedIn(true)
-      setStatus("success")
-      setMessage("Successfully logged in to ATM")
-    } catch (error) {
+      // Ensure amount is always a double with two decimals (e.g., 50.00, 50.25)
+      const doubleAmount = Math.round(Number(amt) * 100) / 100
+      if (action === "withdraw") {
+        // Get the current balance from the accounts state
+        const currentAccount = accounts.find(acc => acc.id === selectedAccount.id)
+        const currentBalance = currentAccount ? currentAccount.balance : selectedAccount.balance
+        
+        if (currentBalance <= 0) {
+          setIsLoading(false)
+          setStatus("error")
+          setMessage("Insufficient funds: Your balance is zero.")
+          return
+        }
+        
+        if (doubleAmount > currentBalance) {
+          setIsLoading(false)
+          setStatus("error")
+          setMessage(`Insufficient funds: You only have €${currentBalance.toFixed(2)} available.`)
+          return
+        }
+        await apiService.atmWithdraw(selectedAccount.iban, doubleAmount)
+        setMessage(`Withdrew €${doubleAmount.toFixed(2)} from ${selectedAccount.iban}`)
+        setStatus("success")
+        setAccounts((prev) => prev.map(acc => acc.id === selectedAccount.id ? { ...acc, balance: acc.balance - doubleAmount } : acc))
+      } else {
+        await apiService.atmDeposit(selectedAccount.iban, doubleAmount)
+        setMessage(`Deposited €${doubleAmount.toFixed(2)} to ${selectedAccount.iban}`)
+        setStatus("success")
+        setAccounts((prev) => prev.map(acc => acc.id === selectedAccount.id ? { ...acc, balance: acc.balance + doubleAmount } : acc))
+      }
+      setAmount(doubleAmount)
+    } catch (e) {
+      setMessage("Transaction failed. Please try again.")
       setStatus("error")
-      setMessage("Invalid credentials")
     } finally {
       setIsLoading(false)
     }
   }
 
-  async function handleWithdraw(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsLoading(true)
-    setStatus("idle")
-
-    const formData = new FormData(event.currentTarget)
-    const amount = Number.parseFloat(formData.get("amount") as string)
-
-    try {
-      await apiService.atmWithdraw(amount, userAccount.id)
-      setStatus("success")
-      setMessage(`Successfully withdrew €${amount.toFixed(2)}`)
-      // Update account balance
-      setUserAccount((prev: any) => ({ ...prev, balance: prev.balance - amount }))
-    } catch (error) {
-      setStatus("error")
-      setMessage("Withdrawal failed. Check your limits and balance.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  async function handleDeposit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsLoading(true)
-    setStatus("idle")
-
-    const formData = new FormData(event.currentTarget)
-    const amount = Number.parseFloat(formData.get("amount") as string)
-
-    try {
-      await apiService.atmDeposit(amount, userAccount.id)
-      setStatus("success")
-      setMessage(`Successfully deposited €${amount.toFixed(2)}`)
-      // Update account balance
-      setUserAccount((prev: any) => ({ ...prev, balance: prev.balance + amount }))
-    } catch (error) {
-      setStatus("error")
-      setMessage("Deposit failed. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  if (!isLoggedIn) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-              <CreditCard className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <CardTitle className="text-2xl font-bold">ATM Login</CardTitle>
-            <CardDescription>Enter your credentials to access ATM services</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              {status === "error" && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{message}</AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" required disabled={isLoading} />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" name="password" type="password" required disabled={isLoading} />
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login to ATM"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
+  // ATM legacy style container
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">ATM Services</CardTitle>
-          <CardDescription>Account Balance: €{userAccount?.balance?.toFixed(2) || "0.00"}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {status !== "idle" && (
-            <Alert variant={status === "success" ? "default" : "destructive"} className="mb-4">
-              {status === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#0a1a12] to-[#1a2a2f]">
+      <div className="relative w-[520px] h-[700px] bg-[#16281b] rounded-[32px] shadow-2xl border-[12px] border-[#2e3d2f] flex flex-col items-center justify-center overflow-hidden retro-atm" style={{boxShadow: '0 0 60px #0a1a12'}}>
+        {/* ATM screen border */}
+        <div className="absolute inset-0 border-[6px] border-[#3fa36c] rounded-[24px] pointer-events-none" style={{zIndex:2}} />
+        {/* ATM screen content */}
+        <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-10 text-[#7fffa7] font-mono">
+          {/* Step 1: Select account */}
+          {step === 1 && (
+            <>
+              <div className="mb-4 text-center">
+                <div className="text-2xl font-bold mb-2">Welcome to Legacy ATM</div>
+                <div className="text-base text-blue-200">Select an account to continue</div>
+              </div>
+              <div className="flex flex-col gap-3 w-full">
+                {isLoading ? (
+                  <div className="text-center text-blue-200">Loading accounts...</div>
+                ) : accounts.length === 0 ? (
+                  <div className="text-center text-red-300">No accounts found</div>
+                ) : accounts.map(acc => (
+                  <Button key={acc.id} className="w-full justify-between bg-blue-800 hover:bg-blue-700 border border-blue-400 text-lg font-mono" onClick={() => { setSelectedAccount(acc); setStep(2) }}>
+                    <span>{acc.iban}</span>
+                    <span>€{acc.balance?.toFixed(2)}</span>
+                  </Button>
+                ))}
+              </div>
+            </>
           )}
 
-          <Tabs defaultValue="withdraw" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
-              <TabsTrigger value="deposit">Deposit</TabsTrigger>
-            </TabsList>
+          {/* Step 2: Select action */}
+          {step === 2 && selectedAccount && (
+            <>
+              <div className="mb-4 text-center">
+                <div className="text-xl font-bold mb-2">Account: {selectedAccount.iban}</div>
+                <div className="text-base text-blue-200">Balance: €{selectedAccount.balance?.toFixed(2)}</div>
+              </div>
+              <div className="flex flex-col gap-4 w-full">
+                <Button className="w-full bg-green-700 hover:bg-green-600 text-lg" onClick={() => { setAction("deposit"); setStep(3) }}>Deposit</Button>
+                <Button className="w-full bg-yellow-700 hover:bg-yellow-600 text-lg" onClick={() => { setAction("withdraw"); setStep(3) }}>Withdraw</Button>
+                <Button variant="outline" className="w-full mt-2" onClick={resetToStep1}>Back</Button>
+              </div>
+            </>
+          )}
 
-            <TabsContent value="withdraw">
-              <form onSubmit={handleWithdraw} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="withdraw-amount">Amount (€)</Label>
-                  <Input
-                    id="withdraw-amount"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max={userAccount?.balance}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Processing..." : "Withdraw"}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="deposit">
-              <form onSubmit={handleDeposit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="deposit-amount">Amount (€)</Label>
-                  <Input
-                    id="deposit-amount"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Processing..." : "Deposit"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-
-          <Button variant="outline" className="mt-4 w-full" onClick={() => setIsLoggedIn(false)}>
-            Logout
-          </Button>
-        </CardContent>
-      </Card>
+          {/* Step 3: Select amount */}
+          {step === 3 && selectedAccount && action && (
+            <>
+              <div className="mb-4 text-center">
+                <div className="text-xl font-bold mb-2">{action === "withdraw" ? "Withdraw" : "Deposit"} from {selectedAccount.iban}</div>
+                <div className="text-base text-blue-200">Balance: €{accounts.find(a => a.id === selectedAccount.id)?.balance?.toFixed(2)}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 w-full mb-4">
+                {PRESET_AMOUNTS.map((amt) => (
+                  <Button key={amt} className="bg-blue-700 hover:bg-blue-600 text-lg" onClick={() => handleTransaction(amt)} disabled={isLoading}>{amt} €</Button>
+                ))}
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="Custom €"
+                  className="col-span-2 text-white text-lg px-3 py-2 bg-[#1e2d23] border-[#3fa36c] focus:ring-[#3fa36c]"
+                  value={customAmount}
+                  onChange={e => setCustomAmount(e.target.value)}
+                  disabled={isLoading}
+                />
+                <Button className="col-span-2 bg-blue-900 hover:bg-blue-800 mt-1" onClick={() => { const val = parseFloat(customAmount); if (val > 0) handleTransaction(val) }} disabled={isLoading || !customAmount}>Enter Custom Amount</Button>
+              </div>
+              {status !== "idle" && (
+                <div className={`text-center mb-2 ${status === "success" ? "text-green-300" : "text-red-300"}`}>{message}</div>
+              )}
+              <div className="flex gap-2 w-full">
+                <Button variant="outline" className="w-full" onClick={() => setStep(2)}>Back</Button>
+                <Button variant="outline" className="w-full" onClick={resetToStep1}>End</Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -9,24 +9,35 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { AlertCircle, CheckCircle2, Search } from "lucide-react"
+import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiService } from "@/services/api"
 
-export function TransactionForm() {
+interface Account {
+  id: string
+  iban: string
+  typeOfAccount: string
+  balance: number
+}
+
+interface TransactionFormProps {
+  prefillToIban?: string
+}
+
+export function TransactionForm({ prefillToIban = "" }: TransactionFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
-  const [accounts, setAccounts] = useState([])
-  const [searchResults, setSearchResults] = useState([])
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [toIban, setToIban] = useState(prefillToIban)
 
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
         const data = await apiService.getCustomerAccounts()
-        setAccounts(data)
+        setAccounts(data as Account[])
       } catch (error) {
         console.error("Failed to fetch accounts:", error)
       }
@@ -35,20 +46,6 @@ export function TransactionForm() {
     fetchAccounts()
   }, [])
 
-  async function searchCustomer(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const formData = new FormData(event.currentTarget)
-    const firstName = formData.get("searchFirstName") as string
-    const lastName = formData.get("searchLastName") as string
-
-    try {
-      const results = await apiService.searchCustomerByName(firstName, lastName)
-      setSearchResults(results)
-    } catch (error) {
-      console.error("Failed to search customers:", error)
-    }
-  }
-
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsLoading(true)
@@ -56,24 +53,24 @@ export function TransactionForm() {
     setMessage("")
 
     const formData = new FormData(event.currentTarget)
-    const transferData = {
-      fromAccountId: formData.get("fromAccount") as string,
+    const transactionData = {
+      fromIban: formData.get("fromIban") as string,
       toIban: formData.get("toIban") as string,
       amount: Number.parseFloat(formData.get("amount") as string),
       description: formData.get("description") as string,
     }
 
     try {
-      await apiService.transferFunds(transferData)
+      await apiService.createTransaction(transactionData)
       setStatus("success")
       setMessage("Transfer completed successfully!")
 
       setTimeout(() => {
-        router.push("/transactions/history")
+        router.push("/transactions")
       }, 2000)
-    } catch (error) {
+    } catch (error: any) {
       setStatus("error")
-      setMessage("Transfer failed. Check your limits and account balance.")
+      setMessage(error.message || "Transfer failed. Please check your inputs and try again.")
     } finally {
       setIsLoading(false)
     }
@@ -81,48 +78,6 @@ export function TransactionForm() {
 
   return (
     <div className="space-y-6">
-      {/* Customer Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Find Customer IBAN</CardTitle>
-          <CardDescription>Search for another customer's IBAN by their name</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={searchCustomer} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="searchFirstName">First Name</Label>
-                <Input id="searchFirstName" name="searchFirstName" placeholder="John" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="searchLastName">Last Name</Label>
-                <Input id="searchLastName" name="searchLastName" placeholder="Doe" />
-              </div>
-            </div>
-            <Button type="submit">
-              <Search className="mr-2 h-4 w-4" />
-              Search Customer
-            </Button>
-          </form>
-
-          {searchResults.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <Label>Search Results:</Label>
-              {searchResults.map((customer: any) => (
-                <div key={customer.id} className="rounded border p-2 text-sm">
-                  <strong>
-                    {customer.firstName} {customer.lastName}
-                  </strong>
-                  <br />
-                  Checking IBAN: {customer.checkingIban}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Transfer Form */}
       <form onSubmit={onSubmit} className="space-y-6">
         {status === "success" && (
           <Alert>
@@ -142,15 +97,16 @@ export function TransactionForm() {
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="fromAccount">From Account</Label>
-            <Select name="fromAccount" disabled={isLoading} required>
+            <Label htmlFor="fromIban">From Account</Label>
+            <Select name="fromIban" disabled={isLoading} required>
               <SelectTrigger>
                 <SelectValue placeholder="Select your account" />
               </SelectTrigger>
               <SelectContent>
-                {accounts.map((account: any) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.type} - {account.iban} (€{account.balance.toFixed(2)})
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={account.iban}>
+                    {account.typeOfAccount.charAt(0).toUpperCase() + account.typeOfAccount.slice(1).toLowerCase()} Account
+                    - {account.iban} (€{account.balance.toFixed(2)})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -159,7 +115,15 @@ export function TransactionForm() {
 
           <div className="space-y-2">
             <Label htmlFor="toIban">Recipient IBAN</Label>
-            <Input id="toIban" name="toIban" placeholder="NL91ABNA0417164300" disabled={isLoading} required />
+            <Input
+              id="toIban"
+              name="toIban"
+              placeholder="IBAN"
+              disabled={isLoading}
+              required
+              value={toIban}
+              onChange={e => setToIban(e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">

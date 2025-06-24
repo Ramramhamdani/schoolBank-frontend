@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { LayoutDashboard, Receipt, History, User, LogOut, Menu, Building } from "lucide-react"
 
 interface MobileNavProps {
@@ -36,12 +36,6 @@ export function MobileNav({ isLoggedIn, userRole }: MobileNavProps) {
       icon: <History className="mr-2 h-4 w-4" />,
       active: pathname === "/transactions/history",
     },
-    {
-      href: "/profile",
-      label: "Profile",
-      icon: <User className="mr-2 h-4 w-4" />,
-      active: pathname === "/profile",
-    },
   ]
 
   const employeeRoutes = [
@@ -63,12 +57,6 @@ export function MobileNav({ isLoggedIn, userRole }: MobileNavProps) {
       icon: <Building className="mr-2 h-4 w-4" />,
       active: pathname === "/employee/atms",
     },
-    {
-      href: "/profile",
-      label: "Profile",
-      icon: <User className="mr-2 h-4 w-4" />,
-      active: pathname === "/profile",
-    },
   ]
 
   if (!isLoggedIn) {
@@ -86,6 +74,10 @@ export function MobileNav({ isLoggedIn, userRole }: MobileNavProps) {
         </Button>
       </SheetTrigger>
       <SheetContent side="right">
+        <SheetTitle className="sr-only">Mobile Navigation Menu</SheetTitle>
+        <SheetDescription className="sr-only">
+          Navigation menu for Modern Bank with links to dashboard, transactions, history, and ATMs
+        </SheetDescription>
         <div className="flex flex-col gap-6 py-6">
           <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
             <span className="font-bold">Modern Bank</span>

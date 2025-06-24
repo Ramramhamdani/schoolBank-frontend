@@ -10,31 +10,6 @@ import { RecentTransactions } from "@/components/recent-transactions"
 import { SpendingChart } from "@/components/spending-chart"
 
 export function DashboardPage() {
-  // Mock data - in a real app, this would come from your API
-  const [accounts] = useState([
-    {
-      id: "1",
-      name: "Main Account",
-      balance: 5750.85,
-      accountNumber: "****4567",
-      type: "Checking",
-    },
-    {
-      id: "2",
-      name: "Savings Account",
-      balance: 12340.42,
-      accountNumber: "****7890",
-      type: "Savings",
-    },
-    {
-      id: "3",
-      name: "Investment Account",
-      balance: 34567.1,
-      accountNumber: "****2345",
-      type: "Investment",
-    },
-  ])
-
   return (
     <div className="container mx-auto py-6">
       <h1 className="mb-6 text-3xl font-bold">Welcome back, John</h1>
@@ -46,12 +21,6 @@ export function DashboardPage() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              $
-              {accounts
-                .reduce((sum, account) => sum + account.balance, 0)
-                .toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
             <p className="text-xs text-muted-foreground">+2.5% from last month</p>
           </CardContent>
         </Card>
@@ -94,7 +63,7 @@ export function DashboardPage() {
             <TabsTrigger value="cards">Cards</TabsTrigger>
           </TabsList>
           <TabsContent value="accounts" className="space-y-4">
-            <AccountSummary accounts={accounts} />
+            <AccountSummary />
           </TabsContent>
           <TabsContent value="cards" className="space-y-4">
             <Card>

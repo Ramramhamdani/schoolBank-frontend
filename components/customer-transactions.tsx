@@ -7,13 +7,23 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Filter } from "lucide-react"
+import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { apiService } from "@/services/api"
 
+interface Transaction {
+  id: string
+  fromIban: string
+  toIban: string
+  amount: number
+  typeOfTransaction: string
+  description?: string
+  dateOfExecution: string
+}
+
 export function CustomerTransactions() {
-  const [transactions, setTransactions] = useState([])
-  const [filteredTransactions, setFilteredTransactions] = useState([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState({
     startDate: "",
@@ -24,12 +34,15 @@ export function CustomerTransactions() {
     searchTerm: "",
   })
 
+  // Get today's date in YYYY-MM-DD format for max date restriction
+  const today = new Date().toISOString().split('T')[0]
+
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
         const data = await apiService.getCustomerTransactions()
-        setTransactions(data)
-        setFilteredTransactions(data)
+        setTransactions(data as Transaction[])
+        setFilteredTransactions(data as Transaction[])
       } catch (error) {
         console.error("Failed to fetch transactions:", error)
       } finally {
@@ -40,17 +53,74 @@ export function CustomerTransactions() {
     fetchTransactions()
   }, [])
 
-  const applyFilters = async () => {
-    try {
-      const data = await apiService.filterTransactions(filters)
-      setFilteredTransactions(data)
-    } catch (error) {
-      console.error("Failed to filter transactions:", error)
+  const applyFilters = () => {
+    let filtered = [...transactions]
+
+    // Filter by date range
+    if (filters.startDate) {
+      filtered = filtered.filter(transaction => 
+        new Date(transaction.dateOfExecution) >= new Date(filters.startDate)
+      )
     }
+    if (filters.endDate) {
+      filtered = filtered.filter(transaction => 
+        new Date(transaction.dateOfExecution) <= new Date(filters.endDate + 'T23:59:59')
+      )
+    }
+
+    // Filter by amount range
+    if (filters.minAmount) {
+      filtered = filtered.filter(transaction => 
+        transaction.amount >= parseFloat(filters.minAmount)
+      )
+    }
+    if (filters.maxAmount) {
+      filtered = filtered.filter(transaction => 
+        transaction.amount <= parseFloat(filters.maxAmount)
+      )
+    }
+
+    // Filter by IBAN
+    if (filters.iban) {
+      filtered = filtered.filter(transaction => 
+        transaction.fromIban.toLowerCase().includes(filters.iban.toLowerCase()) ||
+        transaction.toIban.toLowerCase().includes(filters.iban.toLowerCase())
+      )
+    }
+
+    // Filter by search term
+    if (filters.searchTerm) {
+      filtered = filtered.filter(transaction => 
+        transaction.description?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+        transaction.typeOfTransaction.toLowerCase().includes(filters.searchTerm.toLowerCase())
+      )
+    }
+
+    setFilteredTransactions(filtered)
+  }
+
+  const clearFilters = () => {
+    setFilters({
+      startDate: "",
+      endDate: "",
+      minAmount: "",
+      maxAmount: "",
+      iban: "",
+      searchTerm: "",
+    })
+    setFilteredTransactions(transactions)
   }
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
+  }
+
+  useEffect(() => {
+    applyFilters()
+  }, [filters, transactions])
+
+  if (isLoading) {
+    return <div>Loading transactions...</div>
   }
 
   return (
@@ -67,6 +137,7 @@ export function CustomerTransactions() {
               <Input
                 id="start-date"
                 type="date"
+                max={today}
                 value={filters.startDate}
                 onChange={(e) => handleFilterChange("startDate", e.target.value)}
               />
@@ -76,6 +147,7 @@ export function CustomerTransactions() {
               <Input
                 id="end-date"
                 type="date"
+                max={today}
                 value={filters.endDate}
                 onChange={(e) => handleFilterChange("endDate", e.target.value)}
               />
@@ -109,10 +181,19 @@ export function CustomerTransactions() {
                 onChange={(e) => handleFilterChange("maxAmount", e.target.value)}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="search-term">Search</Label>
+              <Input
+                id="search-term"
+                placeholder="Search description or type..."
+                value={filters.searchTerm}
+                onChange={(e) => handleFilterChange("searchTerm", e.target.value)}
+              />
+            </div>
             <div className="flex items-end">
-              <Button onClick={applyFilters} className="w-full">
-                <Filter className="mr-2 h-4 w-4" />
-                Apply Filters
+              <Button onClick={clearFilters} variant="outline" className="w-full">
+                <X className="mr-2 h-4 w-4" />
+                Clear Filters
               </Button>
             </div>
           </div>
@@ -132,13 +213,15 @@ export function CustomerTransactions() {
           </TableHeader>
           <TableBody>
             {filteredTransactions.length > 0 ? (
-              filteredTransactions.map((transaction: any) => (
+              filteredTransactions.map((transaction) => (
                 <TableRow key={transaction.id}>
-                  <TableCell className="font-medium">{new Date(transaction.timestamp).toLocaleDateString()}</TableCell>
+                  <TableCell className="font-medium">
+                    {new Date(transaction.dateOfExecution).toLocaleDateString()}
+                  </TableCell>
                   <TableCell>
                     <div className="text-sm">
-                      <div>From: {transaction.fromAccount}</div>
-                      <div>To: {transaction.toAccount}</div>
+                      <div>From: {transaction.fromIban}</div>
+                      <div>To: {transaction.toIban}</div>
                     </div>
                   </TableCell>
                   <TableCell>{transaction.description || "Transfer"}</TableCell>
@@ -148,7 +231,9 @@ export function CustomerTransactions() {
                     €{Math.abs(transaction.amount).toFixed(2)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{transaction.type}</Badge>
+                    <Badge variant="outline">
+                      {transaction.typeOfTransaction.charAt(0).toUpperCase() + transaction.typeOfTransaction.slice(1).toLowerCase()}
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))

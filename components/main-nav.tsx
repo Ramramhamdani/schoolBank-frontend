@@ -33,12 +33,6 @@ export function MainNav({ isLoggedIn, userRole }: MainNavProps) {
       icon: <History className="mr-2 h-4 w-4" />,
       active: pathname === "/transactions/history",
     },
-    {
-      href: "/profile",
-      label: "Profile",
-      icon: <User className="mr-2 h-4 w-4" />,
-      active: pathname === "/profile",
-    },
   ]
 
   const employeeRoutes = [
@@ -100,8 +94,27 @@ export function MainNav({ isLoggedIn, userRole }: MainNavProps) {
           <Link href="/atm" className="text-sm font-medium text-muted-foreground hover:text-primary">
             ATM
           </Link>
-          <Button variant="ghost" size="sm" className="text-sm font-medium">
-            <LogOut className="mr-2 h-4 w-4" />
+        </div>
+        <div className="flex items-center gap-4">
+          <Button
+              variant="ghost"
+              className="text-sm font-medium text-muted-foreground hover:text-primary"
+              onClick={async () => {
+                try {
+                  // Clear cookies
+                  document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                  
+                  // Clear any local/session storage if used
+                  localStorage.clear();
+                  sessionStorage.clear();
+
+                  // Use router for navigation
+                  window.location.href = "/login";
+                } catch (error) {
+                  console.error("Logout failed", error);
+                }
+              }}
+          >
             Logout
           </Button>
         </div>

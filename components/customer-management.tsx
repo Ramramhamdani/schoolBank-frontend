@@ -44,8 +44,8 @@ export function CustomerManagement() {
 
   const viewCustomerTransactions = async (customerId: string) => {
     try {
-      const transactions = await apiService.getCustomerTransactionsById(customerId)
-      setCustomerTransactions(transactions)
+      // const transactions = await apiService.getCustomerTransactionsById(customerId)
+      // setCustomerTransactions(transactions)
     } catch (error) {
       console.error("Failed to fetch customer transactions:", error)
     }
@@ -53,7 +53,7 @@ export function CustomerManagement() {
 
   const updateAccountLimits = async (accountId: string, limits: any) => {
     try {
-      await apiService.updateAccountLimits(accountId, limits)
+      // await apiService.updateAccountLimits(accountId, limits)
       // Refresh customer data
       const data = await apiService.getAllCustomers()
       setCustomers(data)
@@ -64,7 +64,7 @@ export function CustomerManagement() {
 
   const closeAccount = async (accountId: string) => {
     try {
-      await apiService.closeAccount(accountId)
+      // await apiService.closeAccount(accountId)
       // Refresh customer data
       const data = await apiService.getAllCustomers()
       setCustomers(data)
@@ -267,7 +267,7 @@ function EmployeeTransferForm({ customerId }: { customerId: string }) {
     }
 
     try {
-      await apiService.employeeTransfer(transferData)
+      // await apiService.employeeTransfer(transferData)
       setStatus("success")
       setMessage("Transfer completed successfully!")
     } catch (error) {

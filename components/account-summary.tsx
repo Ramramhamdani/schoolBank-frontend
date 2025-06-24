@@ -1,49 +1,55 @@
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
-import Link from "next/link"
+"use client"
+
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { apiService } from "@/services/api"
 
 interface Account {
   id: string
-  name: string
+  iban: string
+  typeOfAccount: string
   balance: number
-  accountNumber: string
-  type: string
 }
 
-interface AccountSummaryProps {
-  accounts: Account[]
-}
+export function AccountSummary() {
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
 
-export function AccountSummary({ accounts }: AccountSummaryProps) {
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      try {
+        const data = await apiService.getCustomerAccounts()
+        setAccounts(data as Account[])
+      } catch (error: any) {
+        setError(error.message || "Failed to load accounts")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAccounts()
+  }, [])
+
+  if (isLoading) {
+    return <div>Loading accounts...</div>
+  }
+
+  if (error) {
+    return <div className="text-red-500">{error}</div>
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {accounts.map((account) => (
         <Card key={account.id}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">{account.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {account.type} • {account.accountNumber}
-                </p>
-              </div>
-              <p className="text-xl font-bold">
-                ${account.balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            </div>
+          <CardHeader>
+            <CardTitle>{account.typeOfAccount}</CardTitle>
+            <CardDescription>{account.iban}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">€{account.balance.toFixed(2)}</div>
           </CardContent>
-          <CardFooter className="border-t bg-muted/50 px-6 py-3">
-            <div className="flex w-full items-center justify-between">
-              <p className="text-xs text-muted-foreground">Available balance</p>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/transactions">
-                  <span className="mr-2">Transfer</span>
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </CardFooter>
         </Card>
       ))}
     </div>

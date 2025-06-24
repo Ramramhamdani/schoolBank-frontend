@@ -1,10 +1,13 @@
 // API service layer for REST calls to Spring Boot backend
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://schoolbank-backend.onrender.com:8080/api"
+import {date} from "zod";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9090"
+import Cookies from "js-cookie"
 
 class ApiService {
   private getAuthHeaders() {
-    const token = localStorage.getItem("jwt_token")
+    const token = Cookies.get("token")
     return {
       "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -13,124 +16,200 @@ class ApiService {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`
+    const headers = this.getAuthHeaders()
     const config = {
-      headers: this.getAuthHeaders(),
+      headers,
+      credentials: 'include' as RequestCredentials,
       ...options,
     }
 
-    const response = await fetch(url, config)
+    try {
+      const response = await fetch(url, config)
+      if (!response.ok) {
+        const error = await response.text()
+        throw new Error(error || `API Error: ${response.status}`)
+      }
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`)
+      // Only parse JSON if there is content
+      if (response.status === 204) {
+        return null as T
+      }
+      return response.json()
+    } catch (error) {
+      throw error
     }
+  }
 
-    return response.json()
+  private getUserIdFromToken(): string | null {
+    try {
+      const token = Cookies.get("token")
+      if (!token) {
+        return null
+      }
+
+      // Decode the JWT token to get the user ID
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      return payload.sub
+    } catch (error) {
+      console.error('Error decoding JWT token:', error)
+      return null
+    }
   }
 
   // Authentication
-  async login(email: string, password: string) {
+  async login(credentials: { email: string; password: string }) {
+    console.log(JSON.stringify(credentials))
     return this.request("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(credentials),
     })
   }
 
-  async register(customerData: any) {
-    return this.request("/auth/register", {
+  // User Management
+  async register(userData: any) {
+    return this.request("/users", {
       method: "POST",
-      body: JSON.stringify(customerData),
+      body: JSON.stringify(userData),
     })
   }
 
-  // Customer endpoints
+  async getUserById(id: string) {
+    return this.request(`/users/${id}`)
+  }
+
+  // Account Management
+  async getAllAccounts() {
+    return this.request("/accounts")
+  }
+
   async getCustomerAccounts() {
-    return this.request("/customer/accounts")
+    // Get the user ID from the JWT token
+    const userId = this.getUserIdFromToken()
+    if (!userId) {
+      throw new Error("Not authenticated or invalid token")
+    }
+
+    return this.request(`/accounts/user/${userId}`)
   }
 
-  async getCustomerTransactions(accountId?: string) {
-    const endpoint = accountId ? `/customer/transactions?accountId=${accountId}` : "/customer/transactions"
-    return this.request(endpoint)
-  }
-
-  async transferFunds(transferData: any) {
-    return this.request("/customer/transfer", {
+  async createAccount(accountData: { requestedAccountType: string; customerEmail: string }) {
+    return this.request("/accounts", {
       method: "POST",
-      body: JSON.stringify(transferData),
+      body: JSON.stringify(accountData),
     })
   }
 
-  async searchCustomerByName(firstName: string, lastName: string) {
-    return this.request(`/customer/search?firstName=${firstName}&lastName=${lastName}`)
+  async getAccountsByUserId(userId: string) {
+    return this.request(`/accounts/user/${userId}`)
   }
 
-  async filterTransactions(filters: any) {
-    const params = new URLSearchParams(filters).toString()
-    return this.request(`/customer/transactions/filter?${params}`)
+  async getAccountById(id: string) {
+    return this.request(`/accounts/${id}`)
   }
 
-  // ATM endpoints
-  async atmLogin(email: string, password: string) {
-    return this.request("/atm/login", {
+  async deactivateAccount(accountId: string) {
+    return this.request(`/accounts/${accountId}`, {
+      method: "PUT",
+    });
+  }
+
+  // Transaction Management
+  async createTransaction(transactionData: {
+    fromIban: string
+    toIban: string
+    amount: number
+    description?: string
+  }) {
+    // Get the user ID from the JWT token
+    const userId = this.getUserIdFromToken()
+    if (!userId) {
+      throw new Error("Not authenticated or invalid token")
+    }
+
+    return this.request("/transactions", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        ...transactionData,
+        performingUserId: userId,
+        typeOfTransaction: "TRANSFER"
+      }),
     })
   }
 
-  async atmWithdraw(amount: number, accountId: string) {
-    return this.request("/atm/withdraw", {
-      method: "POST",
-      body: JSON.stringify({ amount, accountId }),
-    })
+  async getAccountTransactions(accountId: string) {
+    return this.request(`/accounts/${accountId}/transactions`)
   }
 
-  async atmDeposit(amount: number, accountId: string) {
-    return this.request("/atm/deposit", {
-      method: "POST",
-      body: JSON.stringify({ amount, accountId }),
-    })
+  async getCustomerTransactions() {
+    // Get the user's accounts first
+    const accounts = await this.getCustomerAccounts() as any[]
+
+    // Get transactions for each account
+    const allTransactions: any[] = []
+    for (const account of accounts) {
+      try {
+        const transactions = await this.getAccountTransactions(account.id) as any[]
+        allTransactions.push(...transactions)
+      } catch (error) {
+        console.error(`Failed to fetch transactions for account ${account.id}:`, error)
+      }
+    }
+    // Filter duplicate transaction
+    const uniqueTransactions = Array.from(
+        new Map(allTransactions.map(tx => [tx.id, tx])).values()
+    )
+    // Sort transactions by dateOfExecution (most recent first)
+    return uniqueTransactions.sort((a, b) => new Date(b.dateOfExecution).getTime() - new Date(a.dateOfExecution).getTime());
   }
 
-  // Employee endpoints
+  // Employee/Admin methods (these would need backend endpoints)
+  async getAllTransactions() {
+    // TODO: This would need a backend endpoint like /transactions
+    // For now, return empty array to prevent errors
+    console.warn("getAllTransactions() called but no backend endpoint exists")
+    return []
+  }
+
   async getAllCustomers() {
-    return this.request("/employee/customers")
+    // TODO: This would need a backend endpoint like /users
+    // For now, return empty array to prevent errors
+    console.warn("getAllCustomers() called but no backend endpoint exists")
+    return []
   }
 
   async getPendingApprovals() {
-    return this.request("/employee/pending-approvals")
+    // TODO: This would need a backend endpoint for pending approvals
+    // For now, return empty array to prevent errors
+    console.warn("getPendingApprovals() called but no backend endpoint exists")
+    return []
   }
 
-  async approveCustomer(customerId: string, accountLimits: any) {
-    return this.request(`/employee/approve-customer/${customerId}`, {
-      method: "POST",
-      body: JSON.stringify(accountLimits),
-    })
-  }
-
-  async getAllTransactions() {
-    return this.request("/employee/transactions")
-  }
-
-  async getCustomerTransactionsById(customerId: string) {
-    return this.request(`/employee/customers/${customerId}/transactions`)
-  }
-
-  async employeeTransfer(transferData: any) {
-    return this.request("/employee/transfer", {
-      method: "POST",
-      body: JSON.stringify(transferData),
-    })
-  }
-
-  async updateAccountLimits(accountId: string, limits: any) {
-    return this.request(`/employee/accounts/${accountId}/limits`, {
+  async updateUser(userId: string, userData: any) {
+    return this.request(`/users/${userId}`, {
       method: "PUT",
-      body: JSON.stringify(limits),
+      body: JSON.stringify(userData),
     })
   }
 
-  async closeAccount(accountId: string) {
-    return this.request(`/employee/accounts/${accountId}/close`, {
-      method: "DELETE",
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    return this.request(`/users/${userId}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  }
+
+  async atmWithdraw(iban: string, amount: number) {
+    const doubleAmount = Number(parseFloat(amount.toString()).toFixed(2));
+    return this.request("/atm/withdraw", {
+      method: "POST",
+      body: JSON.stringify({ iban: iban, amount: doubleAmount}),
+    })
+  }
+  async atmDeposit(iban: string, amount: number) {
+    const doubleAmount = Number(parseFloat(amount.toString()).toFixed(2));
+    return this.request("/atm/deposit", {
+      method: "POST",
+      body: JSON.stringify({ iban: iban, amount: doubleAmount}),
     })
   }
 }
