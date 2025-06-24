@@ -1,6 +1,6 @@
 // API service layer for REST calls to Spring Boot backend
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://schoolbank-backend.onrender.com:8080/api"
 
 class ApiService {
   private getAuthHeaders() {
