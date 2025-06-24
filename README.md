@@ -1,2 +1,1 @@
-# schoolBank-frontend
-
+# Banking API
