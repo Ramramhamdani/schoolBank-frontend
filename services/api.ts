@@ -2,7 +2,7 @@
 
 import {date} from "zod";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://schoolbank-backend.onrender.com:9090"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://schoolbank-backend.onrender.com:8080"
 import Cookies from "js-cookie"
 
 class ApiService {
